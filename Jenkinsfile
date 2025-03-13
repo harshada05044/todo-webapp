@@ -5,15 +5,19 @@ pipeline {
         maven 'Maven 3.9.9'
     }
 
+    environment {
+        GITHUB_CREDENTIALS = credentials('github-token') // Fetch GitHub credentials
+    }
+
     stages {
         stage("Git Clone") {
             steps {
                 script {
-                    // Clean the workspace to avoid conflicts
-                    deleteDir()
+                    deleteDir() // Clean workspace before cloning
                 }
-                // Clone the repo explicitly from the main branch
-                git branch: 'main', url: 'https://github.com/harshada05044/todo-webapp.git'
+                git branch: 'main',
+                    credentialsId: 'github-token',  // Use stored credentials
+                    url: 'https://github.com/harshada05044/todo-webapp.git'
             }
         }
 
@@ -41,6 +45,7 @@ pipeline {
         }
     }
 }
+
 
 
 
