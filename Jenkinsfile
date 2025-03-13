@@ -1,58 +1,46 @@
-#!groovy
-
 pipeline {
     agent any
 
-    environment {
-        AZURE_RESOURCE_GROUP = 'python-webapp-rg'
-        WEBAPP_NAME = "python-webapp"
-        PACKAGE_NAME = "python-app-package.zip"
+    tools {
+        maven 'Maven 3.9.9'
     }
 
     stages {
-        stage('Workspace Cleanup') {
-            steps {
-                cleanWs()
-                echo 'Cleaning workspace...'
-            }
-        }
-
-        stage('Checkout Git Branch') {
-            steps {
-                git branch: 'main', 
-                    credentialsId: 'github-token',  // Use the correct credentials ID from Jenkins
-                    url: 'https://github.com/harshada05044/python-flask-webapp.git'
-            }
-        }
-
-        stage('Build Application') {
-            steps {
-                sh 'python3 -m pip install --upgrade pip'
-                sh 'pip3 install -r requirements.txt'
-            }
-        }
-
-        stage('Package Application') {
+        stage("Git Clone") {
             steps {
                 script {
-                    // Zip all contents inside the project directory, excluding the root folder itself
-                    sh "zip -r ${PACKAGE_NAME} ./*"
-                    sh "zipinfo ${PACKAGE_NAME}"  // Verify the zip file
+                    // Clean the workspace to avoid conflicts
+                    deleteDir()
                 }
+                // Clone the repo explicitly from the main branch
+                git branch: 'main', url: 'https://github.com/harshada05044/todo-webapp.git'
             }
         }
 
-        stage('Login to Azure') {
+        stage("Build") {
             steps {
-                script {
-                    withCredentials([azureServicePrincipal('jenkins-pipeline-sp')]) {
-                        sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
-                        sh 'az webapp deploy --resource-group ${AZURE_RESOURCE_GROUP} --name ${WEBAPP_NAME} --src-path "${WORKSPACE}/${PACKAGE_NAME}"'
-                    }
-                }
+                bat 'mvn clean install'
+            }
+        }
+
+        stage("Deploy") {
+            steps {
+                bat '''
+                copy C:\\ProgramData\\Jenkins\\.jenkins\\workspace\\first_pipeline\\webapp\\target\\webapp.war C:\\apache-tomcat-9.0.102\\apache-tomcat-9.0.102\\webapps
+                '''
             }
         }
     }
+
+    post {
+        success {
+            echo '✅ Build and deployment successful!'
+        }
+        failure {
+            echo '❌ Build or deployment failed! Check logs for details.'
+        }
+    }
 }
+
 
 
