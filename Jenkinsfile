@@ -1,32 +1,58 @@
+#!groovy
+
 pipeline {
     agent any
-    
+
+    environment {
+        AZURE_RESOURCE_GROUP = 'python-webapp-rg'
+        WEBAPP_NAME = "python-webapp"
+        PACKAGE_NAME = "python-app-package.zip"
+    }
+
     stages {
-        stage('Clone Repository') {
+        stage('Workspace Cleanup') {
             steps {
-                git 'https://github.com/harshada05044/todo-webapp.git'
-            }
-        }
-        
-        stage('Set Up Environment') {
-            steps {
-                sh 'python3 -m venv venv'
-                sh 'source venv/bin/activate'
-                sh 'pip install -r requirements.txt'
+                cleanWs()
+                echo 'Cleaning workspace...'
             }
         }
 
-        stage('Run Tests') {
+        stage('Checkout Git Branch') {
             steps {
-                sh 'pytest || echo "No tests found, continuing..."'
+                git branch: 'main', 
+                    credentialsId: 'github-token',  // Use the correct credentials ID from Jenkins
+                    url: 'https://github.com/harshada05044/python-flask-webapp.git'
             }
         }
 
-        stage('Deploy Application') {
+        stage('Build Application') {
             steps {
-                sh 'gunicorn --bind 0.0.0.0:5000 app:app &'
+                sh 'python3 -m pip install --upgrade pip'
+                sh 'pip3 install -r requirements.txt'
+            }
+        }
+
+        stage('Package Application') {
+            steps {
+                script {
+                    // Zip all contents inside the project directory, excluding the root folder itself
+                    sh "zip -r ${PACKAGE_NAME} ./*"
+                    sh "zipinfo ${PACKAGE_NAME}"  // Verify the zip file
+                }
+            }
+        }
+
+        stage('Login to Azure') {
+            steps {
+                script {
+                    withCredentials([azureServicePrincipal('jenkins-pipeline-sp')]) {
+                        sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+                        sh 'az webapp deploy --resource-group ${AZURE_RESOURCE_GROUP} --name ${WEBAPP_NAME} --src-path "${WORKSPACE}/${PACKAGE_NAME}"'
+                    }
+                }
             }
         }
     }
 }
+
 
